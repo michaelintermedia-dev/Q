@@ -11,7 +11,7 @@ namespace Q.WebAPI.Services
     {
         public async Task<string> Transcribe(IFormFile file)
         {
-            using var client = httpClientFactory.CreateClient(Consts.openaiHttpClient);
+            using var client = httpClientFactory.CreateClient(Consts.openAiHttpClient);
 
             using var form = new MultipartFormDataContent();
 

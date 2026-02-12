@@ -480,4 +480,23 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+/WebAPI/Uploads
+
+
+# .NET
+bin/
+obj/
+*.user
+
+# Node/React Native
+node_modules/
+.expo/
+.expo-shared/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+/my-mobile-test1/google-services.json
+/NotificationService/firebase-credentials.json
 /Q.WebAPI/recording_20260212_132537.m4a

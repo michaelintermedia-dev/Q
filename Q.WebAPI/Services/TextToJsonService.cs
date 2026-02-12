@@ -70,7 +70,7 @@ namespace Q.WebAPI.Services
 
             var jsonBody = JsonSerializer.Serialize(bodyObject);
 
-            using var client = httpClientFactory.CreateClient(Consts.openaiHttpClient);
+            using var client = httpClientFactory.CreateClient(Consts.openAiHttpClient);
 
             var response = await client.PostAsync(
                 "/v1/chat/completions",

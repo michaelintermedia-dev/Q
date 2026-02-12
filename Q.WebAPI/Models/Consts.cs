@@ -2,6 +2,6 @@
 {
     public class Consts
     {
-        public  const string openaiHttpClient = "openai_http_client";
+        public  const string openAiHttpClient = "openai_http_client";
     }
 }
