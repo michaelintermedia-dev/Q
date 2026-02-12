@@ -1,5 +1,5 @@
 <Solution>
   <Project Path="Q.AppHost/Q.AppHost.csproj" />
   <Project Path="Q.ServiceDefaults/Q.ServiceDefaults.csproj" />
-  <Project Path="WebApi/WebApi.csproj" />
+  <Project Path="Q.WebAPI/Q.WebAPI.csproj" />
 </Solution>
