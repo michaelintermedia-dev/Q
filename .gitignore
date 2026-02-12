@@ -480,3 +480,4 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+/Q.WebAPI/recording_20260212_132537.m4a

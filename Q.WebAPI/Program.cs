@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.HttpLogging;
 using Q.WebAPI.Endpoints;
+using Q.WebAPI.Models;
 using Q.WebAPI.Services;
+using System.Net.Http.Headers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,6 +22,11 @@ builder.Services.AddHttpLogging(logging =>
     logging.MediaTypeOptions.AddText("application/json");
 });
 
+builder.Services.AddHttpClient(Consts.openaiHttpClient, client =>
+{
+    client.BaseAddress = new Uri("https://api.openai.com");
+    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", builder.Configuration["OpenAiApiKey"]);
+});
 
 builder.Services.AddCors(options =>
 {
@@ -35,6 +42,8 @@ builder.Services.AddAuthorization();
 
 
 builder.Services.AddScoped<IAppointmentService, AppointmentService>();
+builder.Services.AddScoped<ISpeechToTextService, SpeechToTextService>();
+builder.Services.AddScoped<ITextToJsonService, TextToJsonService>();
 
 var app = builder.Build();
 app.UseHttpLogging();
