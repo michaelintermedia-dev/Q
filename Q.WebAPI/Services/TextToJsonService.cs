@@ -9,7 +9,7 @@ namespace Q.WebAPI.Services
     {
         Task<Appointment> ConvertTextToJson(string text);
     }
-    public class TextToJsonService(IHttpClientFactory httpClientFactory) : ITextToJsonService
+    public class TextToJsonService(ILogger<TextToJsonService> logger, IHttpClientFactory httpClientFactory) : ITextToJsonService
     {
         public async Task<Appointment> ConvertTextToJson(string text)
         {
@@ -72,17 +72,15 @@ namespace Q.WebAPI.Services
 
             using var client = httpClientFactory.CreateClient(Consts.openAiHttpClient);
 
-            var response = await client.PostAsync(
-                "/v1/chat/completions",
-                new StringContent(jsonBody, Encoding.UTF8, "application/json"));
+            var response = await client.PostAsync("/v1/chat/completions", new StringContent(jsonBody, Encoding.UTF8, "application/json"));
 
             var responseJson = await response.Content.ReadAsStringAsync();
 
             var openai = JsonSerializer.Deserialize<OpenAiResponse>(responseJson);
 
-            var appointmentJson = openai.choices[0].message.content;
+            var appointmentJson = openai?.choices?[0]?.message?.content;
 
-            var appointment = JsonSerializer.Deserialize<Appointment>(appointmentJson);
+            var appointment =  JsonSerializer.Deserialize<Appointment>(appointmentJson);
 
             return appointment;
 

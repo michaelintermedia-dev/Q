@@ -15,6 +15,8 @@ public partial class QContext : DbContext
     {
     }
 
+    public virtual DbSet<Appointment> Appointments { get; set; }
+
     public virtual DbSet<User> Users { get; set; }
 
     public virtual DbSet<UserDevice> UserDevices { get; set; }
@@ -23,10 +25,33 @@ public partial class QContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
-        => optionsBuilder.UseNpgsql("Host=localhost;Port=54667;Username=postgres;Password=Y1bs7nk)V.**DcA*Dxw0Em;Database=q");
+        => optionsBuilder.UseNpgsql("Host=localhost;Port=58839;Username=postgres;Password=Y1bs7nk)V.**DcA*Dxw0Em;Database=q");
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Appointment>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("pk_appointments");
+
+            entity.ToTable("appointments");
+
+            entity.Property(e => e.Id)
+                .UseIdentityAlwaysColumn()
+                .HasColumnName("id");
+            entity.Property(e => e.AdditionalInfo).HasColumnName("additional_info");
+            entity.Property(e => e.AppointmentDate).HasColumnName("appointment_date");
+            entity.Property(e => e.Duration).HasColumnName("duration");
+            entity.Property(e => e.Name)
+                .HasMaxLength(100)
+                .HasColumnName("name");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+
+            entity.HasOne(d => d.User).WithMany(p => p.Appointments)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("fk_appointments_users");
+        });
+
         modelBuilder.Entity<User>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("users_pkey");

@@ -13,6 +13,7 @@ var postgres = builder.AddPostgres("postgres")
 .AddDatabase("q");
 
 builder.AddProject<Projects.Q_WebAPI>("q-webapi")
-    .WithReference(postgres);
+    .WithReference(postgres)
+    .WaitFor(postgres);
 
 builder.Build().Run();

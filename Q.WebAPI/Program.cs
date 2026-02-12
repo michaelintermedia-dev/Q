@@ -69,6 +69,8 @@ builder.Services.AddScoped<IAppointmentService, AppointmentService>();
 builder.Services.AddScoped<ISpeechToTextService, SpeechToTextService>();
 builder.Services.AddScoped<ITextToJsonService, TextToJsonService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
 
 var app = builder.Build();
 app.UseHttpLogging();

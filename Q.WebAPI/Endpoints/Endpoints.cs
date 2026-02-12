@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Q.WebAPI.Services;
+using System.Security.Claims;
 
 namespace Q.WebAPI.Endpoints
 {
@@ -29,23 +30,16 @@ namespace Q.WebAPI.Endpoints
                     return Results.BadRequest(new { message = "No file provided" });
                 }
 
-                //var userIdClaim = request.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                //if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
-                //{
-                //    return Results.Unauthorized();
-                //}
+                var userIdClaim = request.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+                {
+                    return Results.Unauthorized();
+                }
 
                 var file = form.Files[0];
-                var result = await appointmentService.CreateAppointmentWithAudio(1, file);
+                var appointment = await appointmentService.CreateAppointmentWithAudio(userId, file);                
 
-                //if (!success)
-                //{
-                //    return Results.BadRequest(new { message });
-                //}
-
-                //return Results.Ok(new { message, recordingId });
-
-                return Results.Ok(result);
+                return Results.Ok(appointment);
             });
         }
     }

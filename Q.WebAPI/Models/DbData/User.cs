@@ -31,6 +31,8 @@ public partial class User
 
     public DateTime? LastLoginAt { get; set; }
 
+    public virtual ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
+
     public virtual ICollection<UserDevice> UserDevices { get; set; } = new List<UserDevice>();
 
     public virtual ICollection<UserSession> UserSessions { get; set; } = new List<UserSession>();
