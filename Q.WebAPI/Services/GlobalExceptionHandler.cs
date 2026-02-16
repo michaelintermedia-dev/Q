@@ -14,6 +14,7 @@ namespace Q.WebAPI.Services
 
         public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
         {
+
             _logger.LogError(exception, "An unhandled exception occurred.");
 
             var response = new ProblemDetails

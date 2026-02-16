@@ -1,5 +1,6 @@
 ﻿using Q.WebAPI.Models;
 using System.Net.Http.Headers;
+using System.Text.Json;
 
 namespace Q.WebAPI.Services
 {
@@ -31,6 +32,8 @@ namespace Q.WebAPI.Services
             var response = await client.PostAsync("/v1/audio/transcriptions", form);
 
             var json = await response.Content.ReadAsStringAsync();
+
+
 
             return json;
         }

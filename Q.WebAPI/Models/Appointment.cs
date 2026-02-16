@@ -25,7 +25,7 @@ namespace Q.WebAPI.Models
                 return null;
 
             if (DateTime.TryParse(str, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
-                return dt;
+                return DateTime.SpecifyKind(dt, DateTimeKind.Utc);
 
             return null;
         }

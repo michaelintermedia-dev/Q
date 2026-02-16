@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -29,16 +28,16 @@ public interface IAuthService
 }
 public class AuthService : IAuthService
 {
-    private readonly QContext _context;
+    private readonly IDataAccessService _dataAccess;
     private readonly IConfiguration _configuration;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
-        QContext context,
+        IDataAccessService dataAccess,
         IConfiguration configuration,
         ILogger<AuthService> logger)
     {
-        _context = context;
+        _dataAccess = dataAccess;
         _configuration = configuration;
         _logger = logger;
     }
@@ -49,7 +48,7 @@ public class AuthService : IAuthService
         try
         {
             // Check if user exists
-            if (await _context.Users.AnyAsync(u => u.Email == email))
+            if (await _dataAccess.UserExistsByEmailAsync(email))
             {
                 return (false, null, null, "User with this email already exists");
             }
@@ -69,8 +68,7 @@ public class AuthService : IAuthService
                 IsEmailVerified = false
             };
 
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            await _dataAccess.CreateUserAsync(user);
 
             _logger.LogInformation("User registered: {Email}", email);
 
@@ -92,8 +90,7 @@ public class AuthService : IAuthService
     {
         try
         {
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Email == email);
+            var user = await _dataAccess.GetUserByEmailAsync(email);
 
             if (user == null)
             {
@@ -108,7 +105,7 @@ public class AuthService : IAuthService
 
             // Update last login
             user.LastLoginAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
+            await _dataAccess.UpdateUserAsync(user);
 
             // Register device if provided
             if (!string.IsNullOrEmpty(deviceToken) && !string.IsNullOrEmpty(platform))
@@ -134,9 +131,7 @@ public class AuthService : IAuthService
     public async Task<(bool success, string? token, string? refreshToken, string? message)> RefreshTokenAsync(
         string refreshToken)
     {
-        var session = await _context.UserSessions
-            .Include(s => s.User)
-            .FirstOrDefaultAsync(s => s.RefreshToken == refreshToken && s.RevokedAt == null);
+        var session = await _dataAccess.GetActiveSessionByRefreshTokenAsync(refreshToken);
 
         if (session == null || session.ExpiresAt < DateTime.UtcNow)
         {
@@ -145,25 +140,23 @@ public class AuthService : IAuthService
 
         // Revoke old token
         session.RevokedAt = DateTime.UtcNow;
+        await _dataAccess.UpdateSessionAsync(session);
 
         // Generate new tokens
         var newToken = GenerateJwtToken(session.User);
         var newRefreshToken = await CreateRefreshTokenAsync(session.UserId);
-
-        await _context.SaveChangesAsync();
 
         return (true, newToken, newRefreshToken, "Token refreshed");
     }
 
     public async Task<bool> LogoutAsync(int userId, string refreshToken)
     {
-        var session = await _context.UserSessions
-            .FirstOrDefaultAsync(s => s.UserId == userId && s.RefreshToken == refreshToken);
+        var session = await _dataAccess.GetSessionByUserAndTokenAsync(userId, refreshToken);
 
         if (session != null)
         {
             session.RevokedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
+            await _dataAccess.UpdateSessionAsync(session);
         }
 
         return true;
@@ -171,30 +164,28 @@ public class AuthService : IAuthService
 
     public async Task<bool> VerifyEmailAsync(string token)
     {
-        var user = await _context.Users
-            .FirstOrDefaultAsync(u => u.EmailVerificationToken == token);
+        var user = await _dataAccess.GetUserByVerificationTokenAsync(token);
 
         if (user == null)
             return false;
 
         user.IsEmailVerified = true;
         user.EmailVerificationToken = null;
-        await _context.SaveChangesAsync();
+        await _dataAccess.UpdateUserAsync(user);
 
         return true;
     }
 
     public async Task<bool> RequestPasswordResetAsync(string email)
     {
-        var user = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == email);
+        var user = await _dataAccess.GetUserByEmailAsync(email);
 
         if (user == null)
             return false;
 
         user.PasswordResetToken = GenerateToken();
         user.PasswordResetTokenExpiry = DateTime.UtcNow.AddHours(1);
-        await _context.SaveChangesAsync();
+        await _dataAccess.UpdateUserAsync(user);
 
         // TODO: Send email with reset link
         _logger.LogInformation("Password reset requested for {Email}", email);
@@ -204,9 +195,7 @@ public class AuthService : IAuthService
 
     public async Task<bool> ResetPasswordAsync(string token, string newPassword)
     {
-        var user = await _context.Users
-            .FirstOrDefaultAsync(u => u.PasswordResetToken == token 
-                && u.PasswordResetTokenExpiry > DateTime.UtcNow);
+        var user = await _dataAccess.GetUserByPasswordResetTokenAsync(token);
 
         if (user == null)
             return false;
@@ -217,31 +206,29 @@ public class AuthService : IAuthService
         user.PasswordResetToken = null;
         user.PasswordResetTokenExpiry = null;
 
-        await _context.SaveChangesAsync();
+        await _dataAccess.UpdateUserAsync(user);
 
         return true;
     }
 
     private async Task RegisterDeviceAsync(int userId, string deviceToken, string platform)
     {
-        var existingDevice = await _context.UserDevices
-            .FirstOrDefaultAsync(d => d.UserId == userId && d.DeviceToken == deviceToken);
+        var existingDevice = await _dataAccess.GetUserDeviceAsync(userId, deviceToken);
 
         if (existingDevice != null)
         {
             existingDevice.LastActiveAt = DateTime.UtcNow;
+            await _dataAccess.UpdateUserDeviceAsync(existingDevice);
         }
         else
         {
-            _context.UserDevices.Add(new UserDevice
+            await _dataAccess.CreateUserDeviceAsync(new UserDevice
             {
                 UserId = userId,
                 DeviceToken = deviceToken,
                 Platform = platform
             });
         }
-
-        await _context.SaveChangesAsync();
     }
 
     private string GenerateJwtToken(User user)
@@ -275,14 +262,12 @@ public class AuthService : IAuthService
     {
         var refreshToken = GenerateToken();
 
-        _context.UserSessions.Add(new UserSession
+        await _dataAccess.CreateSessionAsync(new UserSession
         {
             UserId = userId,
             RefreshToken = refreshToken,
             ExpiresAt = DateTime.UtcNow.AddDays(30)
         });
-
-        await _context.SaveChangesAsync();
 
         return refreshToken;
     }

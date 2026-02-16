@@ -65,10 +65,14 @@ builder.Services.AddAuthorization();
 builder.Services.AddDbContext<QContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("q")));
 
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAppointmentService, AppointmentService>();
 builder.Services.AddScoped<ISpeechToTextService, SpeechToTextService>();
 builder.Services.AddScoped<ITextToJsonService, TextToJsonService>();
+builder.Services.AddScoped<IValidationService, ValidationService>();
+builder.Services.AddScoped<IDataAccessService, DataAccessService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<UserService>();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 
