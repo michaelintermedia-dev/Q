@@ -1,15 +1,54 @@
 import { RecordingPresets, requestRecordingPermissionsAsync, useAudioPlayer, useAudioRecorder } from 'expo-audio';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 //import '../../firebase';
 import { apiGet, getApiUrl } from '../../api/client';
 import { TokenService } from '../../auth/services/TokenService';
+import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+
+interface AppointmentData {
+    name: string;
+    phone: string;
+    appointmentDate: string;
+    appointmentDurationMinutes: number;
+    additionalText: string;
+}
+
+interface UploadResponse {
+    appointment: AppointmentData;
+    validation: {
+        isSuccess: boolean;
+        error: string;
+    };
+}
+
+function formatDateForDisplay(isoString: string): string {
+    try {
+        const date = new Date(isoString);
+        return date.toLocaleString();
+    } catch {
+        return isoString;
+    }
+}
 
 function RecordingItem({ uri, index }: { uri: string; index: number }) {
     const player = useAudioPlayer(uri);
+    const [uploading, setUploading] = useState(false);
+    const [showForm, setShowForm] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [appointment, setAppointment] = useState<AppointmentData | null>(null);
+    const [validationError, setValidationError] = useState<string | null>(null);
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [editingDateManually, setEditingDateManually] = useState(false);
+    const [dateInputText, setDateInputText] = useState('');
+
+    function updateField<K extends keyof AppointmentData>(field: K, value: AppointmentData[K]) {
+        setAppointment(prev => prev ? { ...prev, [field]: value } : prev);
+    }
 
     async function uploadRecording() {
         try {
+            setUploading(true);
             console.log('[Upload] Starting upload:', uri);
 
             // Generate unique filename based on timestamp
@@ -53,9 +92,17 @@ function RecordingItem({ uri, index }: { uri: string; index: number }) {
                 clearTimeout(timeoutId);
 
                 if (response.ok) {
-                    const result = await response.text();
+                    const result: UploadResponse = await response.json();
                     console.log('[Upload] Success:', result);
-                    alert('Upload successful!');
+
+                    if (!result.validation.isSuccess) {
+                        setValidationError(result.validation.error);
+                    } else {
+                        setValidationError(null);
+                    }
+
+                    setAppointment(result.appointment);
+                    setShowForm(true);
                 } else {
                     const errorText = await response.text();
                     console.error('[Upload] Failed', response.status, errorText);
@@ -73,6 +120,56 @@ function RecordingItem({ uri, index }: { uri: string; index: number }) {
         } catch (err: any) {
             console.error('[Upload] Error', err);
             alert(`Upload error: ${err.message || err}`);
+        } finally {
+            setUploading(false);
+        }
+    }
+
+    function handleDiscard() {
+        console.log('[Appointment] Discarded');
+        setShowForm(false);
+        setAppointment(null);
+        setValidationError(null);
+        setShowDatePicker(false);
+        setEditingDateManually(false);
+        setDateInputText('');
+    }
+
+    async function handleConfirm() {
+        if (!appointment) return;
+
+        try {
+            setSubmitting(true);
+            const apiUrl = getApiUrl('/ConfirmAppointment');
+            const token = await TokenService.getToken();
+            console.log('[Appointment] Confirming:', appointment);
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    ...(token && { 'Authorization': `Bearer ${token}` }),
+                },
+                body: JSON.stringify(appointment),
+            });
+
+            if (response.ok) {
+                console.log('[Appointment] Confirmed successfully');
+                alert('Appointment confirmed!');
+                setShowForm(false);
+                setAppointment(null);
+                setValidationError(null);
+            } else {
+                const errorText = await response.text();
+                console.error('[Appointment] Confirm failed:', response.status, errorText);
+                alert(`Failed to confirm: ${response.status} - ${errorText}`);
+            }
+        } catch (err: any) {
+            console.error('[Appointment] Confirm error:', err);
+            alert(`Error confirming appointment: ${err.message || err}`);
+        } finally {
+            setSubmitting(false);
         }
     }
 
@@ -86,9 +183,200 @@ function RecordingItem({ uri, index }: { uri: string; index: number }) {
                     <Text>Recording {index + 1}: {uri.split('/').pop()}</Text>
                 </View>
             </Pressable>
-            <Pressable onPress={uploadRecording} style={styles.saveButton}>
-                <Text style={styles.saveButtonText}>Save</Text>
+            <Pressable onPress={uploadRecording} style={styles.saveButton} disabled={uploading}>
+                {uploading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                    <Text style={styles.saveButtonText}>Save</Text>
+                )}
             </Pressable>
+
+            <Modal
+                visible={showForm}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={handleDiscard}
+            >
+                <KeyboardAvoidingView
+                    style={styles.modalOverlay}
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                >
+                    <View style={styles.modalContent}>
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            <Text style={styles.modalTitle}>Appointment Details</Text>
+
+                            {validationError ? (
+                                <View style={styles.validationError}>
+                                    <Text style={styles.validationErrorText}>⚠️ {validationError}</Text>
+                                </View>
+                            ) : null}
+
+                            <Text style={styles.fieldLabel}>Name</Text>
+                            <TextInput
+                                style={styles.fieldInput}
+                                value={appointment?.name ?? ''}
+                                onChangeText={(text) => updateField('name', text)}
+                                placeholder="Name"
+                            />
+
+                            <Text style={styles.fieldLabel}>Phone</Text>
+                            <TextInput
+                                style={styles.fieldInput}
+                                value={appointment?.phone ?? ''}
+                                onChangeText={(text) => updateField('phone', text)}
+                                placeholder="Phone"
+                                keyboardType="phone-pad"
+                            />
+
+                            <Text style={styles.fieldLabel}>Appointment Date</Text>
+                            {editingDateManually ? (
+                                <View style={styles.dateRow}>
+                                    <TextInput
+                                        style={[styles.fieldInput, styles.dateTextInput]}
+                                        value={dateInputText}
+                                        onChangeText={setDateInputText}
+                                        onBlur={() => {
+                                            const parsed = new Date(dateInputText);
+                                            if (!isNaN(parsed.getTime())) {
+                                                updateField('appointmentDate', parsed.toISOString());
+                                            }
+                                        }}
+                                        placeholder="e.g. Jan 25, 2026 1:40 PM"
+                                    />
+                                    <Pressable
+                                        onPress={() => {
+                                            const parsed = new Date(dateInputText);
+                                            if (!isNaN(parsed.getTime())) {
+                                                updateField('appointmentDate', parsed.toISOString());
+                                            }
+                                            setEditingDateManually(false);
+                                        }}
+                                        style={styles.dateToggleButton}
+                                    >
+                                        <Text style={styles.dateToggleText}>📅</Text>
+                                    </Pressable>
+                                </View>
+                            ) : (
+                                <View>
+                                    <Pressable
+                                        onPress={async () => {
+                                            if (Platform.OS === 'android') {
+                                                try {
+                                                    const currentDate = appointment?.appointmentDate ? new Date(appointment.appointmentDate) : new Date();
+                                                    const { action: dateAction, year, month, day } = await DateTimePickerAndroid.open({
+                                                        value: currentDate,
+                                                        mode: 'date',
+                                                    }) as any;
+                                                    if (dateAction === 'dismissedAction') return;
+                                                    const { action: timeAction, hours, minutes } = await DateTimePickerAndroid.open({
+                                                        value: currentDate,
+                                                        mode: 'time',
+                                                        is24Hour: true,
+                                                    }) as any;
+                                                    if (timeAction === 'dismissedAction') return;
+                                                    const selected = new Date(year, month, day, hours, minutes);
+                                                    updateField('appointmentDate', selected.toISOString());
+                                                } catch (e) {
+                                                    console.error('[DatePicker] Android error:', e);
+                                                }
+                                            } else if (Platform.OS === 'web') {
+                                                setShowDatePicker(true);
+                                            } else {
+                                                setShowDatePicker(!showDatePicker);
+                                            }
+                                        }}
+                                        style={styles.datePickerTrigger}
+                                    >
+                                        <Text style={appointment?.appointmentDate ? styles.datePickerText : styles.datePickerPlaceholder}>
+                                            {appointment?.appointmentDate ? formatDateForDisplay(appointment.appointmentDate) : 'Select date & time'}
+                                        </Text>
+                                        <Pressable
+                                            onPress={() => {
+                                                setDateInputText(
+                                                    appointment?.appointmentDate
+                                                        ? formatDateForDisplay(appointment.appointmentDate)
+                                                        : ''
+                                                );
+                                                setEditingDateManually(true);
+                                            }}
+                                            style={styles.dateToggleButton}
+                                        >
+                                            <Text style={styles.dateToggleText}>✏️</Text>
+                                        </Pressable>
+                                    </Pressable>
+                                    {showDatePicker && Platform.OS === 'ios' && (
+                                        <>
+                                            <DateTimePicker
+                                                value={appointment?.appointmentDate ? new Date(appointment.appointmentDate) : new Date()}
+                                                mode="datetime"
+                                                display="spinner"
+                                                onChange={(_event: any, selectedDate?: Date) => {
+                                                    if (selectedDate) {
+                                                        updateField('appointmentDate', selectedDate.toISOString());
+                                                    }
+                                                }}
+                                            />
+                                            <Pressable
+                                                onPress={() => setShowDatePicker(false)}
+                                                style={styles.datePickerDone}
+                                            >
+                                                <Text style={styles.datePickerDoneText}>Done</Text>
+                                            </Pressable>
+                                        </>
+                                    )}
+                                    {showDatePicker && Platform.OS === 'web' && (
+                                        <TextInput
+                                            style={styles.fieldInput}
+                                            value={appointment?.appointmentDate ? appointment.appointmentDate.slice(0, 16) : ''}
+                                            onChangeText={(text) => {
+                                                if (text) {
+                                                    updateField('appointmentDate', new Date(text).toISOString());
+                                                }
+                                            }}
+                                            placeholder="YYYY-MM-DDTHH:MM"
+                                        />
+                                    )}
+                                </View>
+                            )}
+
+                            <Text style={styles.fieldLabel}>Duration (minutes)</Text>
+                            <TextInput
+                                style={styles.fieldInput}
+                                value={appointment?.appointmentDurationMinutes?.toString() ?? ''}
+                                onChangeText={(text) => {
+                                    const num = parseInt(text, 10);
+                                    updateField('appointmentDurationMinutes', isNaN(num) ? 0 : num);
+                                }}
+                                placeholder="Duration in minutes"
+                                keyboardType="numeric"
+                            />
+
+                            <Text style={styles.fieldLabel}>Additional Notes</Text>
+                            <TextInput
+                                style={[styles.fieldInput, styles.fieldInputMultiline]}
+                                value={appointment?.additionalText ?? ''}
+                                onChangeText={(text) => updateField('additionalText', text)}
+                                placeholder="Additional notes"
+                                multiline
+                                numberOfLines={3}
+                            />
+
+                            <View style={styles.modalButtons}>
+                                <Pressable onPress={handleDiscard} style={styles.discardButton} disabled={submitting}>
+                                    <Text style={styles.discardButtonText}>Discard</Text>
+                                </Pressable>
+                                <Pressable onPress={handleConfirm} style={styles.confirmButton} disabled={submitting}>
+                                    {submitting ? (
+                                        <ActivityIndicator size="small" color="#fff" />
+                                    ) : (
+                                        <Text style={styles.confirmButtonText}>OK</Text>
+                                    )}
+                                </Pressable>
+                            </View>
+                        </ScrollView>
+                    </View>
+                </KeyboardAvoidingView>
+            </Modal>
         </View>
     );
 }
@@ -316,5 +604,135 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#333',
         marginBottom: 4,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        padding: 20,
+    },
+    modalContent: {
+        backgroundColor: '#fff',
+        borderRadius: 16,
+        padding: 24,
+        maxHeight: '90%',
+    },
+    modalTitle: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        marginBottom: 16,
+        textAlign: 'center',
+        color: '#000',
+    },
+    validationError: {
+        backgroundColor: '#FFF3CD',
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: '#FFCC02',
+    },
+    validationErrorText: {
+        fontSize: 14,
+        color: '#856404',
+    },
+    fieldLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#333',
+        marginBottom: 4,
+        marginTop: 12,
+    },
+    fieldInput: {
+        borderWidth: 1,
+        borderColor: '#ccc',
+        borderRadius: 10,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        fontSize: 16,
+        backgroundColor: '#f9f9f9',
+        color: '#000',
+    },
+    fieldInputMultiline: {
+        minHeight: 80,
+        textAlignVertical: 'top',
+    },
+    dateRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    dateTextInput: {
+        flex: 1,
+    },
+    datePickerTrigger: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#ccc',
+        borderRadius: 10,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        backgroundColor: '#f9f9f9',
+    },
+    datePickerText: {
+        flex: 1,
+        fontSize: 16,
+        color: '#000',
+    },
+    datePickerPlaceholder: {
+        flex: 1,
+        fontSize: 16,
+        color: '#999',
+    },
+    dateToggleButton: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+    },
+    dateToggleText: {
+        fontSize: 20,
+    },
+    datePickerDone: {
+        alignSelf: 'flex-end',
+        marginTop: 8,
+        paddingVertical: 6,
+        paddingHorizontal: 16,
+        backgroundColor: '#007AFF',
+        borderRadius: 8,
+    },
+    datePickerDoneText: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    modalButtons: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 24,
+        gap: 12,
+    },
+    discardButton: {
+        flex: 1,
+        backgroundColor: '#FF3B30',
+        paddingVertical: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    discardButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    confirmButton: {
+        flex: 1,
+        backgroundColor: '#34C759',
+        paddingVertical: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    confirmButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
     },
 });
