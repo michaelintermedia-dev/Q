@@ -7,8 +7,8 @@ namespace Q.WebAPI.Services
 {
     public interface IAppointmentService
     {
-        Task<(Appointment, AppointmentValidation)> CreateAppointmentWithAudio(int userId, IFormFile file);
-        Task<(Appointment, AppointmentValidation)> SaveAppointment(int userId, Appointment appointment);
+        Task<(ClientAppointment, AppointmentValidation)> CreateAppointmentWithAudio(int userId, IFormFile file);
+        Task<(ClientAppointment, AppointmentValidation)> SaveAppointment(int userId, ClientAppointment appointment);
     }
     public class AppointmentService(
 
@@ -20,18 +20,22 @@ namespace Q.WebAPI.Services
 
         ) : IAppointmentService
     {
-        public async Task<(Appointment, AppointmentValidation)> CreateAppointmentWithAudio(int userId, IFormFile file)
+        public async Task<(ClientAppointment, AppointmentValidation)> CreateAppointmentWithAudio(int userId, IFormFile file)
         {
             var text = await speechToTextService.Transcribe(file);
 
-            CheckIfError(text);
+            if (CheckIfError(text))
+            {   
+                return new(new ClientAppointment(), new AppointmentValidation { Error = "Audio might be corrupted", IsSuccess = false });
+            }
+
 
             var appointment = await textToJsonService.ConvertTextToJson(text);
             var validationResult = await validationService.PreliminaryValidation(appointment);
             return (appointment, validationResult);
         }
 
-        public async Task<(Appointment, AppointmentValidation)> SaveAppointment(int userId, Appointment appointment)
+        public async Task<(ClientAppointment, AppointmentValidation)> SaveAppointment(int userId, ClientAppointment appointment)
         {
 
             var validationResult = await validationService.ValidateBeforeSaving(appointment);
@@ -42,7 +46,7 @@ namespace Q.WebAPI.Services
                 {
                     AdditionalInfo = appointment.AdditionalText,
                     Duration = appointment.AppointmentDurationMinutes,
-                    AppointmentDate = appointment.AppointmentDate,
+                    AppointmentDate = appointment.AppointmentDate?.UtcDateTime,
                     Name = appointment.Name,
                     UserId = userId
                 });
@@ -52,19 +56,20 @@ namespace Q.WebAPI.Services
 
 
 
-        private void CheckIfError(string json)
+        private bool CheckIfError(string json)
         {
             try
             {
                 var result = JsonSerializer.Deserialize<Errorobject>(json);
                 if (result is not null && result.error is not null)
-                { 
-                
+                {
+                    return true;
                 }
-
+                return false;
             }
             catch
             {
+                return true;
             }
         }
     }

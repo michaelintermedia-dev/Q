@@ -5,8 +5,8 @@ namespace Q.WebAPI.Services
 {
     public interface IValidationService
     {
-        Task<AppointmentValidation> ValidateBeforeSaving(Appointment appointment);
-        Task<AppointmentValidation> PreliminaryValidation(Appointment appointment);
+        Task<AppointmentValidation> ValidateBeforeSaving(ClientAppointment appointment);
+        Task<AppointmentValidation> PreliminaryValidation(ClientAppointment appointment);
     }
     public class ValidationService(
 
@@ -16,22 +16,22 @@ namespace Q.WebAPI.Services
 
         ) : IValidationService
     {
-        public async Task<AppointmentValidation> PreliminaryValidation(Appointment appointment)
+        public async Task<AppointmentValidation> PreliminaryValidation(ClientAppointment appointment)
         {
             return await Validate(appointment);
         }
 
-        public async Task<AppointmentValidation> ValidateBeforeSaving(Appointment appointment)
+        public async Task<AppointmentValidation> ValidateBeforeSaving(ClientAppointment appointment)
         {
             return await Validate(appointment);
         }
 
-        private async Task<AppointmentValidation> Validate(Appointment appointment)
+        private async Task<AppointmentValidation> Validate(ClientAppointment appointment)
         {
             if (appointment.AppointmentDate is not { } newStart)
                 return new AppointmentValidation { IsSuccess = false, Error = "Appointment date is required." };
 
-            var newEnd = newStart.AddMinutes(appointment.AppointmentDurationMinutes);
+            var newEnd = newStart.UtcDateTime.AddMinutes(appointment.AppointmentDurationMinutes);
 
             var existing = await dataAccessService.GetAppointmentsByUserId(userService.UserId);
             // Note: we need the userId here — see caveat below
@@ -41,9 +41,9 @@ namespace Q.WebAPI.Services
                 if (ex.AppointmentDate is not { } exStart || ex.Duration is not { } exDuration)
                     continue;
 
-                var exEnd = exStart.AddMinutes(exDuration);
+                var exEnd = new DateTimeOffset(exStart).UtcDateTime.AddMinutes(exDuration);
 
-                if (newStart < exEnd && exStart < newEnd)
+                if (newStart.UtcDateTime < new DateTimeOffset(exStart).UtcDateTime && new DateTimeOffset(exStart).UtcDateTime < new DateTimeOffset(newEnd).UtcDateTime)
                 {
                     return new AppointmentValidation
                     {

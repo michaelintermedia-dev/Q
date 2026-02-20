@@ -4,40 +4,40 @@ using System.Text.Json.Serialization;
 
 namespace Q.WebAPI.Models
 {
-    public class Appointment
+    public class ClientAppointment
     {
         public string Name { get; set; }
         public string Phone { get; set; }
 
-        [JsonConverter(typeof(FlexibleDateTimeConverter))]
-        public DateTime? AppointmentDate { get; set; }
+        //[JsonConverter(typeof(FlexibleDateTimeConverter))]
+        public DateTimeOffset? AppointmentDate { get; set; }
 
         public int AppointmentDurationMinutes { get; set; }
         public string AdditionalText { get; set; }
     }
 
-    public class FlexibleDateTimeConverter : JsonConverter<DateTime?>
-    {
-        public override DateTime? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            var str = reader.GetString();
-            if (string.IsNullOrWhiteSpace(str))
-                return null;
+    //public class FlexibleDateTimeConverter : JsonConverter<DateTime?>
+    //{
+    //    public override DateTime? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    //    {
+    //        var str = reader.GetString();
+    //        if (string.IsNullOrWhiteSpace(str))
+    //            return null;
 
-            if (DateTime.TryParse(str, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
-                return DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+    //        if (DateTime.TryParse(str, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
+    //            return DateTime.SpecifyKind(dt, DateTimeKind.Utc);
 
-            return null;
-        }
+    //        return null;
+    //    }
 
-        public override void Write(Utf8JsonWriter writer, DateTime? value, JsonSerializerOptions options)
-        {
-            if (value.HasValue)
-                writer.WriteStringValue(value.Value.ToString("o"));
-            else
-                writer.WriteNullValue();
-        }
-    }
+    //    public override void Write(Utf8JsonWriter writer, DateTime? value, JsonSerializerOptions options)
+    //    {
+    //        if (value.HasValue)
+    //            writer.WriteStringValue(value.Value.ToString("o"));
+    //        else
+    //            writer.WriteNullValue();
+    //    }
+    //}
 
 
 

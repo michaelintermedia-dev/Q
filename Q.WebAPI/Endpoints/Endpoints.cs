@@ -47,7 +47,7 @@ namespace Q.WebAPI.Endpoints
                 return Results.Ok(new { appointment = result.Item1, validation = result.Item2 });
             });
 
-            app.MapPost("/ConfirmAppointment", async (IHttpContextAccessor httpContextAccessor, IAppointmentService appointmentService, [FromBody] Appointment appointment) =>
+            app.MapPost("/ConfirmAppointment", async (IHttpContextAccessor httpContextAccessor, IAppointmentService appointmentService, [FromBody] ClientAppointment appointment) =>
             {
 
                 var userIdClaim = httpContextAccessor.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

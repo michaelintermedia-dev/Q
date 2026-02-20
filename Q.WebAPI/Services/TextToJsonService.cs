@@ -7,11 +7,11 @@ namespace Q.WebAPI.Services
 {
     public interface ITextToJsonService
     {
-        Task<Appointment> ConvertTextToJson(string text);
+        Task<ClientAppointment> ConvertTextToJson(string text);
     }
     public class TextToJsonService(ILogger<TextToJsonService> logger, IHttpClientFactory httpClientFactory) : ITextToJsonService
     {
-        public async Task<Appointment> ConvertTextToJson(string text)
+        public async Task<ClientAppointment> ConvertTextToJson(string text)
         {
 
             var bodyObject = new
@@ -80,7 +80,7 @@ namespace Q.WebAPI.Services
 
             var appointmentJson = openai?.choices?[0]?.message?.content;
 
-            var appointment =  JsonSerializer.Deserialize<Appointment>(appointmentJson);
+            var appointment =  JsonSerializer.Deserialize<ClientAppointment>(appointmentJson);
 
             return appointment;
 
